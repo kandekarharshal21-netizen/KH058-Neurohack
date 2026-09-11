@@ -56,62 +56,62 @@ def seed_db():
         db.add(u)
     db.commit()
 
-    print("Seeding 5 Emergency Zones...")
+    print("Seeding 5 Pune Emergency Disaster Zones...")
     zones_data = [
         {
-            "name": "Zone A — Eastern Riverbed Settlement",
+            "name": "Zone A — Sinhagad Road Mutha River Basin",
             "code": "ZONE-A",
             "hazard_baseline": "FLOOD",
-            "latitude": 26.8520,
-            "longitude": 80.9460,
-            "population": 1800,
-            "baseline_severity": 72.0,
+            "latitude": 18.4782,
+            "longitude": 73.8340,
+            "population": 3800,
+            "baseline_severity": 76.0,
             "accessibility": "RESTRICTED",
-            "polygon_coordinates": [[26.850, 80.940], [26.858, 80.942], [26.855, 80.950], [26.848, 80.948]]
+            "polygon_coordinates": [[18.472, 73.828], [18.484, 73.830], [18.482, 73.842], [18.470, 73.838]]
         },
         {
-            "name": "Zone B — Northern Seismic Fault Line",
+            "name": "Zone B — Shivajinagar & Mutha Confluence",
             "code": "ZONE-B",
-            "hazard_baseline": "EARTHQUAKE",
-            "latitude": 26.9010,
-            "longitude": 80.9820,
-            "population": 900,
-            "baseline_severity": 84.0,
+            "hazard_baseline": "FLOOD",
+            "latitude": 18.5308,
+            "longitude": 73.8475,
+            "population": 2200,
+            "baseline_severity": 68.0,
             "accessibility": "OPEN",
-            "polygon_coordinates": [[26.895, 80.975], [26.905, 80.978], [26.904, 80.988], [26.896, 80.985]]
+            "polygon_coordinates": [[18.525, 73.840], [18.538, 73.843], [18.536, 73.854], [18.523, 73.851]]
         },
         {
-            "name": "Zone C — Central Basin District",
+            "name": "Zone C — Kothrud ARAI Hill & Paud Ridge",
             "code": "ZONE-C",
-            "hazard_baseline": "FLOOD",
-            "latitude": 26.8250,
-            "longitude": 80.9020,
+            "hazard_baseline": "WILDFIRE",
+            "latitude": 18.5074,
+            "longitude": 73.8077,
             "population": 3200,
             "baseline_severity": 61.0,
             "accessibility": "OPEN",
-            "polygon_coordinates": [[26.820, 80.895], [26.832, 80.898], [26.830, 80.910], [26.818, 80.905]]
+            "polygon_coordinates": [[18.500, 73.800], [18.514, 73.803], [18.512, 73.816], [18.498, 73.812]]
         },
         {
-            "name": "Zone D — Southern Coastal Belt",
+            "name": "Zone D — Hadapsar Magarpatta Industrial Belt",
             "code": "ZONE-D",
-            "hazard_baseline": "CYCLONE",
-            "latitude": 26.7820,
-            "longitude": 80.9540,
-            "population": 1200,
-            "baseline_severity": 78.0,
+            "hazard_baseline": "FIRE",
+            "latitude": 18.5089,
+            "longitude": 73.9259,
+            "population": 2900,
+            "baseline_severity": 74.0,
             "accessibility": "OPEN",
-            "polygon_coordinates": [[26.775, 80.948], [26.788, 80.950], [26.785, 80.960], [26.776, 80.958]]
+            "polygon_coordinates": [[18.502, 73.918], [18.516, 73.921], [18.513, 73.934], [18.499, 73.930]]
         },
         {
-            "name": "Zone E — Western Hillside Pass",
+            "name": "Zone E — Katraj Ambegaon Hillside Ghat",
             "code": "ZONE-E",
             "hazard_baseline": "LANDSLIDE",
-            "latitude": 26.8850,
-            "longitude": 80.8540,
-            "population": 500,
-            "baseline_severity": 55.0,
+            "latitude": 18.4485,
+            "longitude": 73.8588,
+            "population": 1400,
+            "baseline_severity": 58.0,
             "accessibility": "BLOCKED",
-            "polygon_coordinates": [[26.880, 80.848], [26.890, 80.850], [26.888, 80.860], [26.879, 80.858]]
+            "polygon_coordinates": [[18.440, 73.850], [18.455, 73.853], [18.452, 73.867], [18.438, 73.862]]
         }
     ]
 
@@ -141,11 +141,11 @@ def seed_db():
         db.flush()
         zone_objs[zd["code"]] = z
 
-    print("Seeding Resource Depots...")
+    print("Seeding Pune Resource Depots...")
     depots_data = [
-        {"name": "Depot Alpha — Central Command Supply Hub", "location": "Lucknow Central Depot", "lat": 26.8467, "lng": 80.9462, "agency": "Emergency Management Authority"},
-        {"name": "Depot Bravo — North Medical & Triage Depot", "location": "Northern Highway Depot", "lat": 26.9100, "lng": 80.9700, "agency": "Health Department"},
-        {"name": "Depot Charlie — South Relief & Logistics Hub", "location": "Southern Ring Depot", "lat": 26.7700, "lng": 80.9300, "agency": "Food & Civil Supplies"}
+        {"name": "PMC Central Command Logistics Hub", "location": "Shivajinagar Central Depot, Pune", "lat": 18.5280, "lng": 73.8510, "agency": "Emergency Management Authority"},
+        {"name": "Pune South Medical & Triage Depot", "location": "Swargate Tactical Logistics Depot, Pune", "lat": 18.4980, "lng": 73.8520, "agency": "Health Department"},
+        {"name": "Pune East Rapid Relief Depot", "location": "Hadapsar Industrial Logistics Base, Pune", "lat": 18.5050, "lng": 73.9180, "agency": "Food & Civil Supplies"}
     ]
 
     depot_objs = []

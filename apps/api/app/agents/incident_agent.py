@@ -72,13 +72,17 @@ Respond ONLY with valid JSON matching this exact structure:
         text_lower = raw_text.lower()
 
         # Extract Hazard
-        hazard = "FLOOD"
-        if "earthquake" in text_lower or "tremor" in text_lower or "structural" in text_lower:
+        hazard = "GENERAL_EMERGENCY"
+        if "fire" in text_lower or "wildfire" in text_lower or "flame" in text_lower or "blaze" in text_lower or "smoke" in text_lower:
+            hazard = "FIRE"
+        elif "earthquake" in text_lower or "tremor" in text_lower or "structural" in text_lower:
             hazard = "EARTHQUAKE"
         elif "cyclone" in text_lower or "wind" in text_lower or "storm" in text_lower:
             hazard = "CYCLONE"
         elif "landslide" in text_lower or "mudslide" in text_lower or "hillside" in text_lower:
             hazard = "LANDSLIDE"
+        elif "flood" in text_lower or "water" in text_lower or "submerged" in text_lower or "river" in text_lower:
+            hazard = "FLOOD"
 
         # Extract Population (e.g. 1800, 3200, 5000, "around 900 people")
         pop_match = re.search(r'(\d[\d,]*)\s*(?:people|residents|population|isolated|affected)', text_lower)

@@ -25,6 +25,16 @@ class ReportCreate(BaseModel):
     zone_id: Optional[str] = None
     image_url: Optional[str] = None
 
+class PublicReportCreate(BaseModel):
+    source_type: str = "TEXT"  # TEXT, VOICE, CAMERA
+    description: str
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    location_accuracy: Optional[float] = None
+    locality: Optional[str] = None
+    media_url: Optional[str] = None
+    ai_analysis: Optional[Dict[str, Any]] = None
+
 class IncidentExtracted(BaseModel):
     hazard: str
     affected_population: int = 0

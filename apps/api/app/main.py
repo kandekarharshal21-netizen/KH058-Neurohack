@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.database import engine, Base
-from app.api import auth, zones, incidents, resources, allocations, tasks, alerts, audit, demo, simulations, settings as settings_api
+from app.api import auth, zones, incidents, resources, allocations, tasks, alerts, audit, demo, simulations, settings as settings_api, cv
 from app.realtime.websocket_manager import ws_manager
 
 logging.basicConfig(level=logging.INFO)
@@ -30,6 +30,7 @@ app.add_middleware(
 
 # Include API Routers
 app.include_router(auth.router, prefix=settings.API_PREFIX)
+app.include_router(cv.router, prefix=settings.API_PREFIX)
 app.include_router(zones.router, prefix=settings.API_PREFIX)
 app.include_router(incidents.router, prefix=settings.API_PREFIX)
 app.include_router(resources.router, prefix=settings.API_PREFIX)

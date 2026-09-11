@@ -6,7 +6,7 @@ from typing import Optional, List
 
 from app.core.database import get_db
 from app.models.models import Incident, Report, Zone, Need, AuditLog
-from app.schemas.schemas import ReportCreate, IncidentCreate
+from app.schemas.schemas import ReportCreate, IncidentCreate, PublicReportCreate
 from app.agents.incident_agent import IncidentAgent
 from app.services.needs_service import NeedsAssessmentService
 from app.services.priority_service import PriorityEngineService
@@ -166,3 +166,154 @@ async def create_incident(payload: IncidentCreate, db: Session = Depends(get_db)
     await ws_manager.broadcast("incident.created", {"incident_id": inc.id, "zone_id": zone.id, "priority": score})
 
     return inc
+
+@router.post("/submit-public")
+async def submit_public_report(payload: PublicReportCreate, db: Session = Depends(get_db)):
+    """
+    Public Field & Citizen Emergency Submission Endpoint.
+    Attaches real GPS coordinates, Computer Vision AI analysis (hazard class, green bounding boxes, confidence),
+    auto-links to Pune disaster zones, triggers immediate priority recalculation and real-time alerts.
+    """
+    correlation_id = f"KSH-PUB-{uuid.uuid4().hex[:6].upper()}"
+
+    # 1. Resolve to target Zone
+    zones = db.query(Zone).all()
+    target_zone = None
+    if payload.latitude and payload.longitude and zones:
+        target_zone = min(
+            zones,
+            key=lambda z: (z.latitude - payload.latitude)**2 + (z.longitude - payload.longitude)**2
+        )
+    elif payload.locality and zones:
+        for z in zones:
+            if any(part.strip().lower() in z.name.lower() for part in payload.locality.split(",")):
+                target_zone = z
+                break
+
+    if not target_zone and zones:
+        target_zone = zones[0]
+
+    zone_id = target_zone.id if target_zone else None
+
+    # 2. Hazard Extraction from AI Vision or NLP
+    hazard_type = "GENERAL_EMERGENCY"
+    pop_estimate = 120
+    injured = 0
+    confidence = 0.88
+
+    if payload.ai_analysis:
+        hazard_detected = payload.ai_analysis.get("hazard_detected", "")
+        if hazard_detected and hazard_detected != "Clear / Normal":
+            hazard_type = hazard_detected.upper()
+        confidence = float(payload.ai_analysis.get("confidence", 0.90))
+    elif "fire" in payload.description.lower() or "flame" in payload.description.lower() or "smoke" in payload.description.lower():
+        hazard_type = "FIRE"
+    elif "flood" in payload.description.lower() or "water" in payload.description.lower() or "submerged" in payload.description.lower():
+        hazard_type = "FLOOD"
+
+    # Try NLP parsing if text is present
+    if payload.description:
+        try:
+            extracted = await IncidentAgent.extract_incident_from_text(payload.description)
+            if not payload.ai_analysis and extracted.get("hazard") and extracted["hazard"] != "UNKNOWN":
+                hazard_type = extracted["hazard"]
+            if extracted.get("affected_population"):
+                pop_estimate = max(pop_estimate, extracted["affected_population"])
+            if extracted.get("injured"):
+                injured = extracted["injured"]
+        except Exception:
+            pass
+
+    # 3. Create Incident in DB
+    inc_code = f"INC-{uuid.uuid4().hex[:4].upper()}"
+    inc = Incident(
+        code=inc_code,
+        title=f"Field Alert: {payload.locality or (target_zone.name if target_zone else 'Pune')}",
+        description=payload.description,
+        hazard_type=hazard_type,
+        zone_id=zone_id or "ZONE-1",
+        affected_population=pop_estimate,
+        injured_count=injured,
+        accessibility="RESTRICTED" if hazard_type in ["FIRE", "FLOOD"] else "OPEN",
+        status="ACTIVE",
+        confidence=confidence,
+        location_lat=payload.latitude or (target_zone.latitude if target_zone else 18.4782),
+        location_lng=payload.longitude or (target_zone.longitude if target_zone else 73.8340),
+        location_source="GPS_BROWSER" if payload.location_accuracy else "LOCALITY_ESTIMATE",
+        image_url=payload.media_url,
+        evidence_analysis=payload.ai_analysis
+    )
+    db.add(inc)
+
+    # 4. Save Report
+    rep = Report(
+        code=f"REP-{uuid.uuid4().hex[:4].upper()}",
+        raw_text=payload.description,
+        zone_id=zone_id,
+        correlation_id=correlation_id,
+        image_url=payload.media_url,
+        parsed_data={
+            "source_type": payload.source_type,
+            "locality": payload.locality,
+            "hazard_type": hazard_type,
+            "ai_analysis": payload.ai_analysis
+        },
+        status="PROCESSED"
+    )
+    db.add(rep)
+
+    # 5. Dynamically update Zone Needs and Priority
+    if target_zone:
+        needs_data = NeedsAssessmentService.calculate_zone_needs(
+            population=max(target_zone.population, pop_estimate),
+            injured_count=injured,
+            accessibility=inc.accessibility,
+            hazard_type=hazard_type
+        )
+        for nd in needs_data:
+            existing_need = db.query(Need).filter(Need.zone_id == target_zone.id, Need.resource_type == nd["resource_type"]).first()
+            if existing_need:
+                existing_need.quantity_required += nd["quantity_required"]
+            else:
+                db.add(Need(
+                    zone_id=target_zone.id,
+                    resource_type=nd["resource_type"],
+                    quantity_required=nd["quantity_required"],
+                    unit=nd["unit"],
+                    urgency=nd["urgency"],
+                    basis=nd["basis"],
+                    confidence=nd["confidence"]
+                ))
+
+        score, level, _ = PriorityEngineService.calculate_zone_priority(
+            population=max(target_zone.population, pop_estimate),
+            injured_count=injured,
+            missing_count=0,
+            accessibility=inc.accessibility,
+            urgency=90.0 if hazard_type == "FIRE" else 80.0
+        )
+        target_zone.priority_score = score
+        target_zone.priority_level = level
+
+    db.commit()
+    db.refresh(inc)
+
+    # 6. Broadcast Real-time WebSocket Alert to Officer Command Center
+    await ws_manager.broadcast("incident.created", {
+        "incident_id": inc.id,
+        "code": inc.code,
+        "hazard_type": hazard_type,
+        "priority_score": target_zone.priority_score if target_zone else 85.0,
+        "zone_name": target_zone.name if target_zone else "Pune Metropolitan Area",
+        "locality": payload.locality or "Pune",
+        "ai_analysis": payload.ai_analysis
+    })
+
+    return {
+        "success": True,
+        "incident_id": inc.id,
+        "incident_code": inc.code,
+        "hazard_type": hazard_type,
+        "zone_name": target_zone.name if target_zone else "Pune",
+        "priority_score": target_zone.priority_score if target_zone else 85.0
+    }

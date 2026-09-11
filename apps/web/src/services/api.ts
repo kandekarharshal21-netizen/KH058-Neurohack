@@ -4,6 +4,50 @@ import { Zone, Incident, ResourceDepot, AllocationPlan, TaskItem, AlertItem, Aud
 const API_BASE = '/api';
 
 export const api = {
+  // Authentication
+  register: async (userData: any) => {
+    const res = await axios.post(`${API_BASE}/auth/register`, userData);
+    return res.data;
+  },
+
+  login: async (credentials: any) => {
+    const res = await axios.post(`${API_BASE}/auth/login`, credentials);
+    return res.data;
+  },
+
+  logout: async () => {
+    const res = await axios.post(`${API_BASE}/auth/logout`);
+    return res.data;
+  },
+
+  // Computer Vision & Disaster Detection
+  analyzeFrame: async (imageBase64: string, locationLat?: number, locationLng?: number) => {
+    const res = await axios.post(`${API_BASE}/cv/analyze`, {
+      image_base64: imageBase64,
+      location_lat: locationLat,
+      location_lng: locationLng
+    });
+    return res.data;
+  },
+
+  uploadAnalyzeImage: async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await axios.post(`${API_BASE}/cv/upload-analyze`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return res.data;
+  },
+
+  analyzeVideo: async (file: File, fpsSample: number = 2) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await axios.post(`${API_BASE}/cv/video-analyze?fps_sample=${fpsSample}`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return res.data;
+  },
+
   // Zones
   getZones: async (): Promise<Zone[]> => {
     const res = await axios.get(`${API_BASE}/zones`);

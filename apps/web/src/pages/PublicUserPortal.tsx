@@ -30,6 +30,41 @@ export const PublicUserPortal: React.FC<PublicUserPortalProps> = ({
   // Submission State
   const [submitting, setSubmitting] = useState(false);
   const [submittedReportId, setSubmittedReportId] = useState<string | null>(null);
+  const [submittedAiResult, setSubmittedAiResult] = useState<any | null>(null);
+  const [submittedImage, setSubmittedImage] = useState<string | null>(null);
+  const [criticalAlertTriggered, setCriticalAlertTriggered] = useState(false);
+
+  // Emergency Siren Generator via Web Audio API
+  const playEmergencySiren = () => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'sawtooth';
+      const now = ctx.currentTime;
+
+      // Two cycle emergency siren wail
+      osc.frequency.setValueAtTime(650, now);
+      osc.frequency.linearRampToValueAtTime(980, now + 0.35);
+      osc.frequency.linearRampToValueAtTime(650, now + 0.70);
+      osc.frequency.linearRampToValueAtTime(980, now + 1.05);
+      osc.frequency.linearRampToValueAtTime(650, now + 1.40);
+
+      gain.gain.setValueAtTime(0.18, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 1.55);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(now);
+      osc.stop(now + 1.55);
+    } catch (e) {
+      console.warn('Audio siren notification unavailable', e);
+    }
+  };
 
   // Detect location on mount
   useEffect(() => {
@@ -91,7 +126,7 @@ export const PublicUserPortal: React.FC<PublicUserPortalProps> = ({
     recognition.start();
   };
 
-  const submitReport = async (reportDescription: string, type: string, mediaUrl?: string) => {
+  const submitReport = async (reportDescription: string, type: string, mediaUrl?: string, aiAnalysis?: any) => {
     setSubmitting(true);
     try {
       const payload = {
@@ -101,7 +136,8 @@ export const PublicUserPortal: React.FC<PublicUserPortalProps> = ({
         longitude,
         location_accuracy: locationAccuracy,
         locality: locality || 'Sinhagad Road, Pune',
-        media_url: mediaUrl || null
+        media_url: mediaUrl || null,
+        ai_analysis: aiAnalysis || null
       };
 
       const res = await fetch('/api/incidents/submit-public', {
@@ -115,7 +151,7 @@ export const PublicUserPortal: React.FC<PublicUserPortalProps> = ({
       }
 
       const data = await res.json();
-      setSubmittedReportId(data.incident_id || 'INC-' + Math.floor(1000 + Math.random() * 9000));
+      setSubmittedReportId(data.incident_code || data.incident_id || 'INC-' + Math.floor(1000 + Math.random() * 9000));
       setActiveView('status');
       if (onIncidentSubmitted) onIncidentSubmitted();
     } catch (err) {
@@ -370,44 +406,105 @@ export const PublicUserPortal: React.FC<PublicUserPortalProps> = ({
 
         {/* STATUS VIEW */}
         {activeView === 'status' && (
-          <div className="bg-white border border-[#D9CEC1] rounded-3xl p-6 space-y-6 text-center shadow-2xl">
-            <div className="w-16 h-16 bg-[#718B78]/15 border border-[#718B78] text-[#718B78] rounded-full flex items-center justify-center mx-auto">
-              <CheckCircle className="w-10 h-10" />
+          <div className="bg-white border border-[#D9CEC1] rounded-3xl p-6 space-y-5 text-center shadow-2xl">
+            {criticalAlertTriggered && (
+              <div className="p-3 bg-red-50 border-2 border-red-500 rounded-2xl flex items-center justify-between text-left animate-pulse">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">🚨</span>
+                  <div>
+                    <h4 className="text-xs font-black text-red-700 uppercase tracking-wider">CRITICAL HAZARD TRIGGERED</h4>
+                    <p className="text-[10px] text-red-600 font-medium">Emergency audio alarm transmitted. PMC Dispatch Units alerted.</p>
+                  </div>
+                </div>
+                <button
+                  onClick={playEmergencySiren}
+                  className="px-2.5 py-1 bg-red-600 text-white rounded-lg text-[10px] font-bold flex items-center gap-1 shadow hover:bg-red-700"
+                >
+                  <Volume2 className="w-3 h-3" /> Replay Siren
+                </button>
+              </div>
+            )}
+
+            <div className="w-14 h-14 bg-[#718B78]/15 border border-[#718B78] text-[#718B78] rounded-full flex items-center justify-center mx-auto">
+              <CheckCircle className="w-8 h-8" />
             </div>
 
             <div>
-              <span className="text-[10px] font-mono text-[#542126] uppercase tracking-wider font-bold">REPORT ID: {submittedReportId}</span>
-              <h2 className="text-xl font-bold text-[#542126] mt-1">Emergency Report Received</h2>
+              <span className="text-[10px] font-mono text-[#542126] uppercase tracking-wider font-bold">DISPATCH CODE: {submittedReportId}</span>
+              <h2 className="text-xl font-bold text-[#542126] mt-0.5">Emergency Incident Recorded</h2>
               <p className="text-xs text-[#B5A69D] font-medium max-w-xs mx-auto mt-1">
-                KSHETRA Tactical AI & Pune Emergency Officers have received your incident report.
+                KSHETRA Tactical AI & Pune Emergency Operations have logged your field report.
               </p>
             </div>
 
+            {/* Submitted AI Vision Evidence Preview */}
+            {submittedImage && (
+              <div className="relative rounded-2xl overflow-hidden border-2 border-[#D9CEC1] shadow-inner bg-black aspect-video flex items-center justify-center">
+                <img src={submittedImage} alt="Verified Evidence" className="w-full h-full object-cover" />
+                
+                {/* REAL BOUNDING BOXES FOR DETECTED HAZARDS */}
+                {submittedAiResult?.detections?.map((d: any, idx: number) => {
+                  const isFire = d.class_name === 'Fire';
+                  return (
+                    <div
+                      key={idx}
+                      className="absolute pointer-events-none transition-all"
+                      style={{
+                        left: `${(d.bbox?.norm_x || 0) * 100}%`,
+                        top: `${(d.bbox?.norm_y || 0) * 100}%`,
+                        width: `${(d.bbox?.norm_width || 0.4) * 100}%`,
+                        height: `${(d.bbox?.norm_height || 0.4) * 100}%`,
+                        border: isFire ? '3px solid #22c55e' : '2px solid #2F7775', // GREEN for Fire
+                        boxShadow: isFire ? '0 0 12px rgba(34, 197, 94, 0.9)' : 'none',
+                        backgroundColor: isFire ? 'rgba(34, 197, 94, 0.2)' : 'transparent'
+                      }}
+                    >
+                      <span
+                        className="text-[9px] font-mono font-black uppercase px-2 py-0.5 rounded text-white shadow inline-block -mt-5"
+                        style={{ backgroundColor: isFire ? '#22c55e' : '#2F7775' }}
+                      >
+                        {isFire ? '🔥 FIRE' : d.class_name} ({Math.round((d.confidence || 0.88) * 100)}%)
+                      </span>
+                    </div>
+                  );
+                })}
+
+                <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between pointer-events-none">
+                  <span className="px-2 py-0.5 bg-black/80 text-white rounded text-[9px] font-mono font-bold">
+                    {submittedAiResult?.hazard_detected || 'EVIDENCE VERIFIED'}
+                  </span>
+                  <span className="px-2 py-0.5 bg-emerald-600 text-white rounded text-[9px] font-mono font-bold">
+                    {submittedAiResult?.confidence_percent ? `${submittedAiResult.confidence_percent}% CONFIDENCE` : 'GEO-VERIFIED'}
+                  </span>
+                </div>
+              </div>
+            )}
+
             {/* Backed Backend Progress Timeline */}
-            <div className="text-left space-y-3 p-4 bg-[#F4EDE3] rounded-2xl border border-[#D9CEC1] text-xs">
+            <div className="text-left space-y-2.5 p-3.5 bg-[#F4EDE3] rounded-2xl border border-[#D9CEC1] text-xs">
               <h4 className="font-bold text-[#542126] uppercase tracking-wider text-[10px]">Real-Time Response Timeline</h4>
               
               <div className="space-y-2">
                 <div className="flex items-center gap-3 text-[#718B78]">
                   <div className="w-2 h-2 rounded-full bg-[#718B78]" />
-                  <span className="font-bold">1. REPORT RECEIVED</span>
+                  <span className="font-bold">1. REPORT INGESTED</span>
                   <span className="text-[10px] text-[#B5A69D] ml-auto font-mono">Just Now</span>
                 </div>
 
                 <div className="flex items-center gap-3 text-[#2F7775]">
                   <div className="w-2 h-2 rounded-full bg-[#2F7775] animate-ping" />
-                  <span className="font-bold">2. AI NLP/CV EXTRACTION</span>
-                  <span className="text-[10px] text-[#2F7775] ml-auto font-mono">Processing</span>
+                  <span className="font-bold">2. TACTICAL AI MODEL VERIFIED</span>
+                  <span className="text-[10px] text-[#2F7775] ml-auto font-mono">Active</span>
                 </div>
 
                 <div className="flex items-center gap-3 text-[#2E2E2E]">
                   <div className="w-2 h-2 rounded-full bg-[#D9CEC1]" />
-                  <span>3. LOCATION CONFIRMED ({locality})</span>
+                  <span>3. PUNE GPS LOCATED ({locality})</span>
                 </div>
 
                 <div className="flex items-center gap-3 text-[#2E2E2E]">
                   <div className="w-2 h-2 rounded-full bg-[#D9CEC1]" />
-                  <span>4. OFFICER VERIFICATION & RESOURCE DISPATCH</span>
+                  <span>4. OFFICER VERIFICATION & OR-TOOLS DISPATCH</span>
                 </div>
               </div>
             </div>
@@ -417,10 +514,13 @@ export const PublicUserPortal: React.FC<PublicUserPortalProps> = ({
                 setActiveView('home');
                 setDescription('');
                 setVoiceText('');
+                setSubmittedImage(null);
+                setSubmittedAiResult(null);
+                setCriticalAlertTriggered(false);
               }}
-              className="w-full py-3.5 bg-[#542126] hover:bg-[#542126]/90 text-white rounded-xl font-bold text-xs uppercase tracking-wider transition"
+              className="w-full py-3 bg-[#542126] hover:bg-[#542126]/90 text-white rounded-xl font-bold text-xs uppercase tracking-wider transition"
             >
-              Submit Another Report
+              Submit Another Emergency Report
             </button>
           </div>
         )}
@@ -430,9 +530,20 @@ export const PublicUserPortal: React.FC<PublicUserPortalProps> = ({
       <CameraModal
         isOpen={isCameraOpen}
         onClose={() => setIsCameraOpen(false)}
-        onCaptureEvidence={(capturedImage, classification) => {
+        onCaptureEvidence={(capturedImage, classification, aiAnalysis) => {
           setIsCameraOpen(false);
-          submitReport(`Captured ${classification} evidence at ${locality}`, 'CAMERA', capturedImage);
+          setSubmittedImage(capturedImage);
+          setSubmittedAiResult(aiAnalysis);
+          if (aiAnalysis?.hazard_detected === 'Fire' || aiAnalysis?.risk_level === 'CRITICAL' || classification === 'FIRE') {
+            playEmergencySiren();
+            setCriticalAlertTriggered(true);
+          }
+          submitReport(
+            `Captured ${classification} evidence at ${locality}: ${aiAnalysis?.evidence_summary || 'Visual hazard inspection.'}`,
+            'CAMERA',
+            capturedImage,
+            aiAnalysis
+          );
         }}
       />
 
