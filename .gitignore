@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+apps/web/node_modules/
+
+# Build & Dist
+dist/
+apps/web/dist/
+build/
+
+# Python & Caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+kshetra.db
+
+# Environment & IDE
+.env
+.env.local
+.vscode/
+.idea/
+*.log
